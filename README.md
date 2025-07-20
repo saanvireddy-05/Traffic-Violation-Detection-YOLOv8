@@ -23,5 +23,13 @@ This project is a real-time AI-based Traffic Signal Violation Detection System. 
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/traffic-signal-violation-detection.git
+git clone https://github.com/saanvireddy-05/traffic-signal-violation-detection.git
 cd traffic-signal-violation-detection
+
+### 2. Install Required Python Packages
+
+```
+bash
+pip install -r requirements.txt
+
+
