@@ -29,16 +29,14 @@ cd traffic-signal-violation-detection
 
 ### 2. Install Required Python Packages
 
-```
-bash
+```bash
 pip install -r requirements.txt
 ```
 
 ### 3. Set up MySQL Database
 Open MySQL Workbench or any MySQL client and run the following commands:
 
-```
-bash
+```bash
 CREATE DATABASE traffic_violation;
 
 USE traffic_violation;
@@ -62,14 +60,12 @@ Place your traffic video file (e.g., tr.mp4) inside the project folder.
 
 ### 6. Run the Detection Script
 
-```
-bash
+```bash
 python traffic_violation_detection.py
 ```
 ## Project Structure
 
-```
-bash
+```bash
 traffic-signal-violation-detection/
 ├── yolov8m.pt                   # YOLOv8 model
 ├── tr.mp4                       # Sample traffic video
