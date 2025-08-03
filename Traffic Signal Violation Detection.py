@@ -6,34 +6,34 @@ import time
 import easyocr
 import mysql.connector
 
-# Setup folders
+# ================= Setup folders =================
 os.makedirs("violations", exist_ok=True)
 os.makedirs("cropped", exist_ok=True)
 
-# MySQL DB connection
+# ================= MySQL DB connection =================
 db = mysql.connector.connect(
     host="localhost",
-    user="root",  # change if needed
-    password="Saanvireddy@05",  # change this!
+    user="root",              # Change if needed
+    password="Saanvireddy@05",  # Change if needed
     database="traffic_violation"
 )
 cursor = db.cursor()
 
-# Load model and OCR
+# ================= Load YOLO model and OCR =================
 model = YOLO("yolov8m.pt")
 coco = model.model.names
 reader = easyocr.Reader(['en'])
 
 TargetLabels = ["bicycle", "car", "motorcycle", "bus", "truck", "traffic light"]
-cooldown_dict = {}              # license plate: last violation time
-violated_plates = set()         # memory of plates that violated
+cooldown_dict = {}      # license plate -> last violation time
+violated_plates = set() # track violators in current session
 
-# Polygons
+# ================= Polygons =================
 RedLight = np.array([[998, 125], [998, 155], [972, 152], [970, 127]])
 GreenLight = np.array([[971, 200], [996, 200], [1001, 228], [971, 230]])
-ROI = np.array([[910, 372], [388, 365], [338, 428], [917, 441]])
+ROI = np.array([[910, 372], [388, 365], [338, 428], [917, 441]])  # Road line
 
-# Helper functions
+# ================= Helper functions =================
 def is_region_light(image, polygon, brightness_threshold=128):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     mask = np.zeros_like(gray)
@@ -56,7 +56,7 @@ def recognize_license_plate(img):
             return text.upper().replace(" ", "")
     return "Unknown"
 
-# Video
+# ================= Video processing =================
 cap = cv2.VideoCapture("tr.mp4")
 violation_count = 0
 
@@ -69,11 +69,12 @@ while cap.isOpened():
     frame = cv2.resize(frame, (1100, 700))
     red_on = is_region_light(frame, RedLight)
 
+    # Draw reference polygons
     cv2.polylines(frame, [RedLight], True, [0, 0, 255], 1)
     cv2.polylines(frame, [GreenLight], True, [0, 255, 0], 1)
     cv2.polylines(frame, [ROI], True, [255, 0, 0], 2)
 
-    results = model.predict(frame, conf=0.75)
+    results = model.predict(frame, conf=0.75, verbose=False)
 
     for result in results:
         boxes = result.boxes.xyxy
@@ -87,15 +88,14 @@ while cap.isOpened():
                 cropped = frame[y1:y2, x1:x2]
                 license_plate = recognize_license_plate(cropped)
 
-                # Violation logic
-                is_violation_now = red_on and (
-                    cv2.pointPolygonTest(ROI, (x1, y1), False) >= 0 or
-                    cv2.pointPolygonTest(ROI, (x2, y2), False) >= 0
-                )
+                # ========= Use bottom-center of vehicle as front =========
+                vehicle_front = (int((x1 + x2) / 2), y2)
+                is_violation_now = red_on and cv2.pointPolygonTest(ROI, vehicle_front, False) >= 0
 
                 if is_violation_now:
                     violated_plates.add(license_plate)
 
+                # Color box red for violators, green otherwise
                 is_already_violator = license_plate in violated_plates
                 box_color = (0, 0, 255) if is_violation_now or is_already_violator else (0, 255, 0)
 
@@ -105,13 +105,14 @@ while cap.isOpened():
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), (0, 0, 0), box_color
                 )
 
+                # ========= Save violation if cooldown expired =========
                 if is_violation_now:
                     now = time.time()
                     if license_plate not in cooldown_dict or now - cooldown_dict[license_plate] > 30:
                         cooldown_dict[license_plate] = now
-                        timestamp = time.strftime("%Y%m%d-%H%M%S")
-                        full_path = f"violations/violation_{timestamp}.jpg"
-                        crop_path = f"cropped/{label}_{timestamp}.jpg"
+                        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")  # readable format
+                        full_path = f"violations/violation_{int(now)}.jpg"
+                        crop_path = f"cropped/{label}_{int(now)}.jpg"
                         cv2.imwrite(full_path, frame)
                         cv2.imwrite(crop_path, cropped)
 
@@ -125,20 +126,21 @@ while cap.isOpened():
 
                         violation_count += 1
                         draw_text_with_background(
-                            frame, f"🚨 Violation: {label}, Plate: {license_plate}", (10, 30),
+                            frame, f"Violation: {label}, Plate: {license_plate}", (10, 30),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), (0, 0, 0), (0, 0, 255)
                         )
 
+    # Show violation count
     draw_text_with_background(
         frame, f"Violations: {violation_count}", (10, 70),
         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), (0, 0, 0), (255, 255, 0)
     )
 
     cv2.imshow("Traffic Violation Detection", frame)
-    if cv2.waitKey(1) == 27:
+    if cv2.waitKey(1) == 27:  # ESC to exit
         break
 
-# Cleanup
+# ================= Cleanup =================
 cap.release()
 cv2.destroyAllWindows()
 cursor.close()
