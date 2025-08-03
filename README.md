@@ -61,7 +61,7 @@ Place your traffic video file (e.g., tr.mp4) inside the project folder.
 ### 6. Run the Detection Script
 
 ```bash
-python traffic_violation_detection.py
+python "Traffic Signal Violation Detection.py"
 ```
 ## Project Structure
 
